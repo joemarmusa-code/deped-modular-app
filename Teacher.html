@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Teacher Dashboard - DepEd Modular Submissions</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans">
+
+  <!-- TOP BAR -->
+  <header class="bg-blue-900 text-white shadow-md">
+    <div class="max-w-7xl mx-mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+      <div>
+        <h1 class="font-bold text-xl flex items-center gap-2">
+          <span>📚</span> Teacher Dashboard
+        </h1>
+        <p class="text-xs text-blue-200">Grade 5 Modular Learning Management System</p>
+      </div>
+      
+      <div class="flex items-center gap-3">
+        <button id="export-btn" onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow flex items-center gap-1.5 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          Export CSV for DepEd Class Record
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+
+    <!-- STATS OVERVIEW CARDS -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Kabuuan (Total)</p>
+        <p id="stat-total" class="text-2xl font-bold text-slate-800">0</p>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-amber-500">
+        <p class="text-xs font-semibold text-amber-600 uppercase">Kailangan Suriin (Pending)</p>
+        <p id="stat-pending" class="text-2xl font-bold text-amber-600">0</p>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-emerald-500">
+        <p class="text-xs font-semibold text-emerald-600 uppercase">Nasuri Na (Reviewed)</p>
+        <p id="stat-reviewed" class="text-2xl font-bold text-emerald-600">0</p>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-rose-500">
+        <p class="text-xs font-semibold text-rose-600 uppercase">Resubmission Needed</p>
+        <p id="stat-resubmit" class="text-2xl font-bold text-rose-600">0</p>
+      </div>
+    </div>
+
+    <!-- FILTER TOOLBAR -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+      <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Filter Submissions</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        <!-- Section Filter -->
+        <select id="filter-section" onchange="applyFilters()" class="p-2.5 border border-slate-300 rounded-lg text-xs bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none">
+          <option value="ALL">Lahat ng Section (All Sections)</option>
+          <option value="Grade 5 - Sampaguita">Grade 5 - Sampaguita</option>
+          <option value="Grade 5 - Dahlias">Grade 5 - Dahlias</option>
+        </select>
+
+        <!-- Subject Filter -->
+        <select id="filter-subject" onchange="applyFilters()" class="p-2.5 border border-slate-300 rounded-lg text-xs bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none">
+          <option value="ALL">Lahat ng Asignatura (All Subjects)</option>
+          <option value="Mathematics">Mathematics</option>
+          <option value="Science">Science</option>
+          <option value="Filipino">Filipino</option>
+          <option value="Araling Panlipunan">Araling Panlipunan</option>
+        </select>
+
+        <!-- Status Filter -->
+        <select id="filter-status" onchange="applyFilters()" class="p-2.5 border border-slate-300 rounded-lg text-xs bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none">
+          <option value="ALL">Lahat ng Status (All Statuses)</option>
+          <option value="Submitted">Submitted (For Review)</option>
+          <option value="Reviewed">Reviewed</option>
+          <option value="Needs Resubmission">Needs Resubmission</option>
+        </select>
+
+        <!-- Search Student Name -->
+        <input 
+          type="text" 
+          id="filter-search" 
+          onkeyup="applyFilters()" 
+          placeholder="Hanapin ang pangalan..." 
+          class="p-2.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+        />
+      </div>
+    </div>
+
+    <!-- SUBMISSIONS TABLE -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-semibold">
+            <tr>
+              <th class="p-3.5">Student & Section</th>
+              <th class="p-3.5">Subject & Module</th>
+              <th class="p-3.5">Date Submitted</th>
+              <th class="p-3.5">Status</th>
+              <th class="p-3.5">Teacher Feedback</th>
+              <th class="p-3.5 text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody id="submissions-list" class="divide-y divide-slate-100">
+            <tr>
+              <td colspan="6" class="p-6 text-center text-slate-400">Loading submissions...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- REVIEW & FEEDBACK MODAL -->
+  <div id="review-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-4xl rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
+      
+      <!-- Left: Image Viewer with Zoom -->
+      <div class="md:w-3/5 bg-slate-900 p-4 flex flex-col justify-between items-center relative overflow-hidden">
+        <div class="w-full h-[350px] md:h-[500px] flex justify-center items-center overflow-auto">
+          <img id="modal-image" src="" alt="Submitted Module" class="max-h-full object-contain rounded transition-transform duration-200" />
+        </div>
+        <p class="text-[11px] text-slate-400 mt-2">Pahiwatig: Right-click o i-long press ang larawan para ma-download.</p>
+      </div>
+
+      <!-- Right: Grading & Feedback Controls -->
+      <div class="md:w-2/5 p-5 flex flex-col justify-between bg-white space-y-4 overflow-y-auto">
+        <div>
+          <div class="flex justify-between items-start border-b pb-3 mb-3">
+            <div>
+              <h3 id="modal-student-name" class="font-bold text-base text-slate-800">---</h3>
+              <p id="modal-student-section" class="text-xs text-slate-500">---</p>
+            </div>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <span class="text-[11px] font-bold text-slate-400 uppercase">Modyul:</span>
+              <p id="modal-module-title" class="text-xs font-semibold text-blue-900">---</p>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Status ng Gawa:</label>
+              <select id="modal-status" class="w-full p-2.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="Reviewed">Reviewed / Checked</option>
+                <option value="Needs Resubmission">Needs Resubmission (Ulitin)</option>
+                <option value="Submitted">Pending Review</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Puna / Comments / Grade:</label>
+              <textarea 
+                id="modal-feedback" 
+                rows="4" 
+                placeholder="Halimbawa: Napakahusay! Kumpleto at tama ang lahat ng kasagutan. (Score: 10/10)"
+                class="w-full p-2.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t flex gap-2">
+          <button onclick="closeModal()" class="w-1/2 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg">Kanselahin</button>
+          <button id="save-review-btn" onclick="saveReview()" class="w-1/2 py-2.5 text-xs font-bold bg-blue-900 hover:bg-blue-800 text-white rounded-lg shadow">I-save ang Review</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. SUPABASE CONFIGURATION
+    // Replace with your keys from Step 1:
+    // ==========================================
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
+    
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let rawSubmissions = [];
+    let filteredSubmissions = [];
+    let activeSubmissionId = null;
+
+    // ==========================================
+    // 2. FETCH DATA FROM SUPABASE (JOIN TABLES)
+    // ==========================================
+    async function loadSubmissions() {
+      try {
+        const { data, error } = await db
+          .from('submissions')
+          .select(`
+            id,
+            status,
+            teacher_feedback,
+            file_url,
+            submitted_at,
+            students ( full_name, grade_section ),
+            modules ( subject_name, quarter, module_number, title )
+          `)
+          .order('submitted_at', { ascending: false });
+
+        if (error) throw error;
+
+        rawSubmissions = data || [];
+        updateStats();
+        applyFilters();
+      } catch (err) {
+        alert('Error loading data: ' + err.message);
+      }
+    }
+
+    // ==========================================
+    // 3. STATS CALCULATION
+    // ==========================================
+    function updateStats() {
+      document.getElementById('stat-total').textContent = rawSubmissions.length;
+      document.getElementById('stat-pending').textContent = rawSubmissions.filter(s => s.status === 'Submitted').length;
+      document.getElementById('stat-reviewed').textContent = rawSubmissions.filter(s => s.status === 'Reviewed').length;
+      document.getElementById('stat-resubmit').textContent = rawSubmissions.filter(s => s.status === 'Needs Resubmission').length;
+    }
+
+    // ==========================================
+    // 4. FILTERING LOGIC
+    // ==========================================
+    function applyFilters() {
+      const section = document.getElementById('filter-section').value;
+      const subject = document.getElementById('filter-subject').value;
+      const status = document.getElementById('filter-status').value;
+      const search = document.getElementById('filter-search').value.toLowerCase();
+
+      filteredSubmissions = rawSubmissions.filter(item => {
+        const matchSection = (section === 'ALL') || (item.students?.grade_section === section);
+        const matchSubject = (subject === 'ALL') || (item.modules?.subject_name === subject);
+        const matchStatus = (status === 'ALL') || (item.status === status);
+        const matchSearch = item.students?.full_name.toLowerCase().includes(search);
+
+        return matchSection && matchSubject && matchStatus && matchSearch;
+      });
+
+      renderTable();
+    }
+
+    // ==========================================
+    // 5. RENDER TABLE
+    // ==========================================
+    function renderTable() {
+      const tbody = document.getElementById('submissions-list');
+      tbody.innerHTML = '';
+
+      if (filteredSubmissions.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400">Walang nahanap na submission sa filter na ito.</td></tr>`;
+        return;
+      }
+
+      filteredSubmissions.forEach(sub => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
+
+        // Status Badge Style
+        let statusBadgeClass = "bg-amber-100 text-amber-800";
+        if (sub.status === 'Reviewed') statusBadgeClass = "bg-emerald-100 text-emerald-800";
+        if (sub.status === 'Needs Resubmission') statusBadgeClass = "bg-rose-100 text-rose-800";
+
+        const formattedDate = new Date(sub.submitted_at).toLocaleString('en-PH', { 
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+        });
+
+        tr.innerHTML = `
+          <td class="p-3.5">
+            <p class="font-bold text-slate-800">${sub.students?.full_name || 'N/A'}</p>
+            <p class="text-[11px] text-slate-500">${sub.students?.grade_section || 'N/A'}</p>
+          </td>
+          <td class="p-3.5">
+            <p class="font-semibold text-blue-900">${sub.modules?.subject_name || 'N/A'}</p>
+            <p class="text-[11px] text-slate-500">Q${sub.modules?.quarter} Mod ${sub.modules?.module_number}: ${sub.modules?.title}</p>
+          </td>
+          <td class="p-3.5 text-slate-500 text-[11px]">${formattedDate}</td>
+          <td class="p-3.5">
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${statusBadgeClass}">
+              ${sub.status}
+            </span>
+          </td>
+          <td class="p-3.5 text-slate-600 max-w-xs truncate">
+            ${sub.teacher_feedback || '<span class="text-slate-300 italic">Walang puna</span>'}
+          </td>
+          <td class="p-3.5 text-center">
+            <button onclick="openReviewModal('${sub.id}')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-200 transition">
+              Suriin (Review)
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ==========================================
+    // 6. MODAL & REVIEW SAVING
+    // ==========================================
+    function openReviewModal(subId) {
+      activeSubmissionId = subId;
+      const sub = rawSubmissions.find(s => s.id === subId);
+      if (!sub) return;
+
+      document.getElementById('modal-image').src = sub.file_url;
+      document.getElementById('modal-student-name').textContent = sub.students?.full_name;
+      document.getElementById('modal-student-section').textContent = sub.students?.grade_section;
+      document.getElementById('modal-module-title').textContent = `${sub.modules?.subject_name} - Q${sub.modules?.quarter} Mod ${sub.modules?.module_number}: ${sub.modules?.title}`;
+      document.getElementById('modal-status').value = sub.status || 'Reviewed';
+      document.getElementById('modal-feedback').value = sub.teacher_feedback || '';
+
+      document.getElementById('review-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('review-modal').classList.add('hidden');
+      activeSubmissionId = null;
+    }
+
+    async function saveReview() {
+      if (!activeSubmissionId) return;
+
+      const newStatus = document.getElementById('modal-status').value;
+      const newFeedback = document.getElementById('modal-feedback').value;
+
+      const saveBtn = document.getElementById('save-review-btn');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Ina-update...';
+
+      try {
+        const { error } = await db
+          .from('submissions')
+          .update({ status: newStatus, teacher_feedback: newFeedback })
+          .eq('id', activeSubmissionId);
+
+        if (error) throw error;
+
+        closeModal();
+        await loadSubmissions(); // Refresh view
+      } catch (err) {
+        alert('Nagka-error sa pag-save: ' + err.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'I-save ang Review';
+      }
+    }
+
+    // ==========================================
+    // 7. EXPORT TO CSV (DepEd Class Record Format)
+    // ==========================================
+    function exportToCSV() {
+      if (filteredSubmissions.length === 0) {
+        alert('Walang data na pwedeng i-export.');
+        return;
+      }
+
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "Student Name,Grade & Section,Subject,Quarter,Module No,Module Title,Date Submitted,Status,Teacher Feedback,Photo Link\n";
+
+      filteredSubmissions.forEach(s => {
+        const row = [
+          `"${s.students?.full_name || ''}"`,
+          `"${s.students?.grade_section || ''}"`,
+          `"${s.modules?.subject_name || ''}"`,
+          `"${s.modules?.quarter || ''}"`,
+          `"${s.modules?.module_number || ''}"`,
+          `"${s.modules?.title || ''}"`,
+          `"${new Date(s.submitted_at).toLocaleString('en-PH')}"`,
+          `"${s.status || ''}"`,
+          `"${(s.teacher_feedback || '').replace(/"/g, '""')}"`,
+          `"${s.file_url || ''}"`
+        ].join(",");
+        csvContent += row + "\n";
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `DepEd_Modular_Submissions_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Initialize
+    loadSubmissions();
+  </script>
+</body>
+</html>

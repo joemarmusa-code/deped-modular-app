@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DepEd Modular Work Submission</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Image Compression Library -->
+  <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 flex flex-col items-center p-4">
+
+  <!-- Header & Connectivity Status -->
+  <header class="w-full max-w-md mb-4 flex justify-between items-center bg-blue-900 text-white p-4 rounded-xl shadow-md">
+    <div>
+      <h1 class="font-bold text-lg">Modyul Submission</h1>
+      <p class="text-xs text-blue-200">Grade 5 Modular Learning</p>
+    </div>
+    <div id="status-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500 text-white flex items-center gap-1">
+      <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span> Online
+    </div>
+  </header>
+
+  <!-- Submission Form Shell -->
+  <main class="w-full max-w-md bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+    <form id="submission-form" class="space-y-5">
+
+      <!-- STEP 1: Student Selection -->
+      <div class="space-y-2">
+        <label class="block text-xs font-bold text-blue-900 uppercase tracking-wide">
+          Step 1: Pangalan ng Mag-aaral
+        </label>
+        
+        <!-- Section Filter -->
+        <select id="section-select" class="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+          <option value="">Pumili ng Section...</option>
+          <option value="Grade 5 - Sampaguita">Grade 5 - Sampaguita</option>
+          <option value="Grade 5 - Dahlias">Grade 5 - Dahlias</option>
+        </select>
+
+        <!-- Student Search / Autocomplete -->
+        <input 
+          list="students-list" 
+          id="student-name" 
+          placeholder="I-type ang iyong Pangalan..." 
+          class="w-full p-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          disabled 
+        />
+        <datalist id="students-list"></datalist>
+      </div>
+
+      <hr class="border-slate-100" />
+
+      <!-- STEP 2: Module Selection -->
+      <div class="space-y-2">
+        <label class="block text-xs font-bold text-blue-900 uppercase tracking-wide">
+          Step 2: Pumili ng Modyul
+        </label>
+        <select id="module-select" class="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+          <option value="">Pumili ng Modyul / Asignatura...</option>
+        </select>
+      </div>
+
+      <hr class="border-slate-100" />
+
+      <!-- STEP 3: Photo Capture & Upload -->
+      <div class="space-y-2">
+        <label class="block text-xs font-bold text-blue-900 uppercase tracking-wide">
+          Step 3: Kuhanan ng Litrato ang Modyul
+        </label>
+        <input 
+          type="file" 
+          id="photo-input" 
+          accept="image/*" 
+          capture="environment"
+          class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" 
+        />
+        <p class="text-[11px] text-slate-400">Awtomatikong pakokontian ang data size ng litrato.</p>
+      </div>
+
+      <!-- Submit Button -->
+      <button 
+        type="submit" 
+        id="submit-btn" 
+        class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold rounded-xl shadow-md transition-all text-sm flex justify-center items-center gap-2">
+        <span>I-submit ang Gawa</span>
+      </button>
+
+    </form>
+
+    <!-- Alert / Message Output -->
+    <div id="message-box" class="mt-4 p-3 rounded-lg text-xs hidden"></div>
+  </main>
+
+  <script>
+    // ==========================================
+    // 1. SUPABASE CONFIGURATION
+    // Paste your keys from Step 1 below:
+    // ==========================================
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
+    
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Global variables
+    let allStudents = [];
+    let allModules = [];
+
+    // Elements
+    const sectionSelect = document.getElementById('section-select');
+    const studentInput = document.getElementById('student-name');
+    const studentDatalist = document.getElementById('students-list');
+    const moduleSelect = document.getElementById('module-select');
+    const form = document.getElementById('submission-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const messageBox = document.getElementById('message-box');
+    const statusBadge = document.getElementById('status-badge');
+
+    // ==========================================
+    // 2. NETWORK STATUS MONITORING
+    // ==========================================
+    function updateOnlineStatus() {
+      if (navigator.onLine) {
+        statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500 text-white flex items-center gap-1";
+        statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-white animate-pulse"></span> Online`;
+        syncOfflineQueue(); // Auto sync when coming back online
+      } else {
+        statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-amber-500 text-white flex items-center gap-1";
+        statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-white"></span> Offline Mode`;
+      }
+    }
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    // ==========================================
+    // 3. INITIALIZE DATA FROM DATABASE
+    // ==========================================
+    async function initData() {
+      try {
+        // Fetch Students
+        const { data: students } = await db.from('students').select('*');
+        if (students) {
+          allStudents = students;
+          localStorage.setItem('cached_students', JSON.stringify(students));
+        }
+
+        // Fetch Modules
+        const { data: modules } = await db.from('modules').select('*');
+        if (modules) {
+          allModules = modules;
+          localStorage.setItem('cached_modules', JSON.stringify(modules));
+        }
+      } catch (err) {
+        // Load fallback cached data if offline on page launch
+        allStudents = JSON.parse(localStorage.getItem('cached_students') || '[]');
+        allModules = JSON.parse(localStorage.getItem('cached_modules') || '[]');
+      }
+      
+      populateModuleDropdown();
+    }
+
+    // Filter student names by selected section
+    sectionSelect.addEventListener('change', () => {
+      const selectedSection = sectionSelect.value;
+      studentDatalist.innerHTML = '';
+      studentInput.value = '';
+
+      if (!selectedSection) {
+        studentInput.disabled = true;
+        return;
+      }
+
+      const filtered = allStudents.filter(s => s.grade_section === selectedSection);
+      filtered.forEach(s => {
+        const option = document.createElement('option');
+        option.value = s.full_name;
+        option.dataset.id = s.id;
+        studentDatalist.appendChild(option);
+      });
+
+      studentInput.disabled = false;
+    });
+
+    // Populate module choices
+    function populateModuleDropdown() {
+      moduleSelect.innerHTML = '<option value="">Pumili ng Modyul / Asignatura...</option>';
+      allModules.forEach(m => {
+        const option = document.createElement('option');
+        option.value = m.id;
+        option.textContent = `${m.subject_name} - Q${m.quarter} Mod ${m.module_number}: ${m.title}`;
+        moduleSelect.appendChild(option);
+      });
+    }
+
+    // ==========================================
+    // 4. SUBMISSION & IMAGE COMPRESSION LOGIC
+    // ==========================================
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const selectedStudentName = studentInput.value;
+      const selectedModuleId = moduleSelect.value;
+      const fileInput = document.getElementById('photo-input');
+
+      // Validation
+      const matchedStudent = allStudents.find(s => s.full_name === selectedStudentName && s.grade_section === sectionSelect.value);
+      if (!matchedStudent) return showMessage('Pakipili ang tamang pangalan mula sa listahan.', 'bg-red-100 text-red-700');
+      if (!selectedModuleId) return showMessage('Pumili ng modyul.', 'bg-red-100 text-red-700');
+      if (!fileInput.files[0]) return showMessage('Kumuha muna ng litrato ng modyul.', 'bg-red-100 text-red-700');
+
+      const rawFile = fileInput.files[0];
+      setLoading(true, 'Pinapaliit ang laki ng litrato...');
+
+      try {
+        // Automatic Client-Side Image Compression (Max ~200KB)
+        const options = { maxSizeMB: 0.2, maxWidthOrHeight: 1200, useWebWorker: true };
+        const compressedFile = await imageCompression(rawFile, options);
+
+        const submissionData = {
+          student_id: matchedStudent.id,
+          module_id: selectedModuleId,
+          timestamp: new Date().toISOString()
+        };
+
+        if (navigator.onLine) {
+          setLoading(true, 'Ina-upload ang gawa...');
+          await uploadToSupabase(compressedFile, submissionData);
+          showMessage('Naisumite nang matagumpay! Magaling!', 'bg-emerald-100 text-emerald-800');
+          form.reset();
+        } else {
+          // Save to local offline queue
+          saveToOfflineQueue(compressedFile, submissionData);
+          showMessage('Naka-save Muna (Offline)! Awtomatikong mag-sesend pag nagka-internet.', 'bg-amber-100 text-amber-800');
+          form.reset();
+        }
+      } catch (err) {
+        showMessage('Nagka-error sa pag-upload: ' + err.message, 'bg-red-100 text-red-700');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // Send payload directly to Supabase
+    async function uploadToSupabase(file, meta) {
+      const fileName = `${meta.student_id}_${meta.module_id}_${Date.now()}.jpg`;
+      
+      // Upload image to Storage
+      const { data: storageData, error: storageErr } = await db.storage
+        .from('submissions')
+        .upload(fileName, file);
+
+      if (storageErr) throw storageErr;
+
+      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/submissions/${fileName}`;
+
+      // Insert record to Submissions table
+      const { error: dbErr } = await db.from('submissions').insert({
+        student_id: meta.student_id,
+        module_id: meta.module_id,
+        file_url: publicUrl,
+        status: 'Submitted'
+      });
+
+      if (dbErr) throw dbErr;
+    }
+
+    // Queue submission into localStorage if offline
+    function saveToOfflineQueue(file, meta) {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = () => {
+        const queue = JSON.parse(localStorage.getItem('submission_queue') || '[]');
+        queue.push({ fileData: reader.result, meta });
+        localStorage.setItem('submission_queue', JSON.stringify(queue));
+      };
+    }
+
+    // Flush offline queue when network connects
+    async function syncOfflineQueue() {
+      const queue = JSON.parse(localStorage.getItem('submission_queue') || '[]');
+      if (queue.length === 0) return;
+
+      statusBadge.textContent = "Syncing saved work...";
+      
+      const newQueue = [];
+      for (const item of queue) {
+        try {
+          // Convert Data URL back to Blob
+          const res = await fetch(item.fileData);
+          const blob = await res.blob();
+          await uploadToSupabase(blob, item.meta);
+        } catch (e) {
+          newQueue.push(item); // Retain if upload fails
+        }
+      }
+
+      localStorage.setItem('submission_queue', JSON.stringify(newQueue));
+      updateOnlineStatus();
+    }
+
+    // UI Helpers
+    function showMessage(msg, colorClass) {
+      messageBox.className = `mt-4 p-3 rounded-lg text-xs font-semibold ${colorClass}`;
+      messageBox.textContent = msg;
+      messageBox.classList.remove('hidden');
+    }
+
+    function setLoading(isLoading, text = 'Ipinapadala...') {
+      submitBtn.disabled = isLoading;
+      submitBtn.textContent = isLoading ? text : 'I-submit ang Gawa';
+    }
+
+    // Startup
+    updateOnlineStatus();
+    initData();
+  </script>
+</body>
+</html>
